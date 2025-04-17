@@ -1,14 +1,10 @@
-import Pyro5.api
+import Pyro4
 import threading
 import random
 import time
 
-# =============================
-# InsultService
-# =============================
-
-@Pyro5.api.expose
-class InsultService:
+@Pyro4.expose
+class InsultService(object):
     def __init__(self):
         self.insults = set()
         self.subscribers = []
@@ -27,7 +23,7 @@ class InsultService:
 
     def subscribe(self, subscriber_uri):
         print(f"New subscriber: {subscriber_uri}")
-        subscriber = Pyro5.api.Proxy(subscriber_uri)
+        subscriber = Pyro4.Proxy(subscriber_uri)
         self.subscribers.append(subscriber)
         return True
 
@@ -41,3 +37,19 @@ class InsultService:
                     except Exception as e:
                         print(f"Subscriber error: {e}")
             time.sleep(5)
+
+
+def main():
+    daemon = Pyro4.Daemon()  # Crea el servidor
+    ns = Pyro4.locateNS()  # Conecta al NameServer
+    uri = daemon.register(InsultService())  # Registra el objeto
+    ns.register("insultservice", uri)  # Registra con el NameServer
+
+    print("InsultService is running.")
+    print(f"URI: {uri}")
+
+    daemon.requestLoop()
+
+
+if __name__ == "__main__":
+    main()

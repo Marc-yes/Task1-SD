@@ -1,17 +1,10 @@
-import Pyro5.api
-import threading
-import random
-import time
+import Pyro4
 
-# =============================
-# InsultService
-# =============================
-
-@Pyro5.api.expose
-class InsultFilter:
+@Pyro4.expose
+class InsultFilter(object):
     def __init__(self, insult_service_uri):
         self.results = []
-        self.insult_service = Pyro5.api.Proxy(insult_service_uri)
+        self.insult_service = Pyro4.Proxy(insult_service_uri)
 
     def filter_text(self, text):
         insults = self.insult_service.get_insults()
@@ -24,3 +17,18 @@ class InsultFilter:
 
     def get_results(self):
         return self.results
+
+
+def main():
+    daemon = Pyro4.Daemon()  # Crea el servidor
+    ns = Pyro4.locateNS()  # Conecta al NameServer
+    insult_service_uri = ns.lookup("insultservice")  # Obtiene la URI del InsultService registrado
+    filter_service = InsultFilter(insult_service_uri)  # Crea el servicio InsultFilter
+    uri = daemon.register(filter_service)  # Registra el objeto
+    ns.register("insultfilter", uri)  # Registra con el NameServer
+    print(f"InsultFilter is running at {uri}")
+
+    daemon.requestLoop()  # Mantiene el servicio ejecutándose
+
+if __name__ == "__main__":
+    main()
