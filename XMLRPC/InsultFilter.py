@@ -9,6 +9,7 @@ class InsultFilter:
         self.insult_service = xmlrpc.client.ServerProxy(insult_service_url)
         self.results = []
         self.task_queue = queue.Queue()
+        self.id=-1
 
     #Si hi ha algun text a la coa, el processa
     def filter_text(self):
@@ -20,7 +21,6 @@ class InsultFilter:
                 for insult in insults:
                     filtered_text = filtered_text.replace(insult, "CENSORED")
                 
-                self.results.clear
                 self.results.append(filtered_text)
                 
                 print(f"Text filtrat: {filtered_text}")
@@ -28,10 +28,12 @@ class InsultFilter:
    
     def add_task(self, text):
         self.task_queue.put(text)
-        #return 1
+        self.id=self.id + 1
+        
+        return self.id
 
-    def get_results(self):
-        return self.results
+    def get_results(self, index):
+        return self.results[index]
 
 # Crear el servidor XML-RPC per al filtre
 def start_filter_server():
