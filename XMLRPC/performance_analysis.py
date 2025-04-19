@@ -1,34 +1,60 @@
 import xmlrpc.client
 import time
 import threading
+import matplotlib.pyplot as plt
 
-#XMLRPC
-xmlrpc_filtre = xmlrpc.client.ServerProxy('http://localhost:8006')
-xmlrpc_service = xmlrpc.client.ServerProxy('http://localhost:8005')
+# Crear client per connectar-se a InsultFilter
+s = xmlrpc.client.ServerProxy('http://localhost:8006')
 
-# Comprovarem quantes tasques es poden processar en un temps determinat
+# Textos per cada prova
+texts_100 = [
+    "Ey, ets un tonto i una sorra.", 
+    "Ets molt guapet, ho sabies?", 
+    "La sorra de ta mare",
+    "Un altre text a filtrar",
+    "Filtrar més texts",
+    "Un text més",
+    "Un altre exemple",
+    "Algú més que vulgui filtrar?",
+    "Text random",
+    "Últim text per provar"
+]
+
+texts_500 = texts_100 * 5  # 500 textos (replicant els de 100)
+texts_1000 = texts_100 * 10  # 1000 textos (replicant els de 100)
+texts_1500 = texts_100 * 15  # 1500 textos (replicant els de 100)
+texts_2000 = texts_100 * 20  # 2000 textos (replicant els de 100)
+
+# Crear un bloqueig per controlar l'accés concurrent a la connexió XML-RPC
+lock = threading.Lock()
+
+# Funció que simula l'enviament de tasques al servidor
 def perform_task(text):
-    """Aquesta funció simula el client enviant una tasca de text al servidor per filtrar."""
-    client_id=s.add_task(text)
-    return s.get_results(client_id)  # Obtenim els resultats filtrats pel client 1
+    with lock:  # Això garanteix que només un thread faci la petició al mateix temps
+        task_id = s.add_task(text)  # Afegeix el text i rep l'ID (index)
+        return task_id  # Retornem només l'ID per més tard recuperar el resultat
 
-# Anàlisi de rendiment per a un únic node
-def single_node_performance():
-    start_time = time.time()
-    texts = ["Ey, ets un tonto", "Ets molt guapet", "La sorra de ta mare"]
-    
+# 1. Anàlisi de rendiment per a un únic node
+def single_node_performance(texts):
+    start_time = time.time()  # Començar a mesurar el temps
+    task_ids = []
     for text in texts:
-        perform_task(text)
+        task_id = perform_task(text)
+        task_ids.append(task_id)  # Guardem els IDs de les tasques
 
-    end_time = time.time()
-    print(f"Temps total per procesar en un únic node: {end_time - start_time} segons.")
+    # Esperar que totes les tasques hagin acabat abans de cridar get_results
+    for task_id in task_ids:
+        s.get_results(task_id)  # Obtenim els resultats filtrats utilitzant l'ID retornat
 
-# Anàlisi d'escalabilitat estàtica (múltiples threads per una càrrega fixa)
-def static_scaling_performance():
+    end_time = time.time()  # Finalitzar mesura de temps
+    return end_time - start_time
+
+# 2. Anàlisi d'escalabilitat estàtica (múltiples threads per una càrrega fixa)
+def static_scaling_performance(texts):
     start_time = time.time()
     threads = []
-    texts = ["Ey, ets un tonto", "Ets molt guapet", "La sorra de ta mare"]
-
+    task_ids = []
+    
     # Creem múltiples threads per simular múltiples clients
     for text in texts:
         thread = threading.Thread(target=perform_task, args=(text,))
@@ -37,40 +63,76 @@ def static_scaling_performance():
 
     # Esperem que tots els threads acabin
     for thread in threads:
-        thread.join()
+        thread.join()  # Espera que el thread acabi
+
+    # Esperar que totes les tasques hagin acabat abans de cridar get_results
+    for task_id in task_ids:
+        s.get_results(task_id)  # Obtenim els resultats filtrats utilitzant l'ID retornat
 
     end_time = time.time()
-    print(f"Temps total amb escalabilitat estàtica: {end_time - start_time} segons.")
+    return end_time - start_time
 
-# Anàlisi d'escalabilitat dinàmica (ajustant el nombre de threads segons la càrrega)
-def dynamic_scaling_performance():
-    start_time = time.time()
-    threads = []
-    texts = ["Ey, ets un tonto", "Ets molt guapet", "La sorra de ta mare", "Un altre text a filtrar", "Filtrar més texts"]
+# Funció per executar totes les proves de rendiment
+def run_all_tests():
+    results = {
+        "single_node": [],
+        "static_scaling": [],
+    }
     
-    # Afegim tasques i ajustem els threads segons la cua
-    for i, text in enumerate(texts):
-        if len(threads) < 3:  # Limitem el nombre de threads actius a 3
-            thread = threading.Thread(target=perform_task, args=(text,))
-            threads.append(thread)
-            thread.start()
+    # Afegir 100, 500, 1000, 1500 i 2000 textos per realitzar l'anàlisi
+    for texts in [texts_100, texts_500, texts_1000, texts_1500, texts_2000]:
+        print(f"\nExecutant anàlisis per a {len(texts)} textos...")
         
-        # Esperem que els threads acabin abans de crear-ne més
-        if len(threads) == 3:
-            for thread in threads:
-                thread.join()
-            threads = []  # Reiniciem els threads
+        print("Anàlisi de rendiment en un únic node:")
+        results["single_node"].append(single_node_performance(texts))
+        
+        print("\nAnàlisi d'escalabilitat estàtica:")
+        results["static_scaling"].append(static_scaling_performance(texts))
 
-    end_time = time.time()
-    print(f"Temps total amb escalabilitat dinàmica: {end_time - start_time} segons.")
+    return results
 
-# Executeu les proves de rendiment
+# Funció per calcular el Speedup
+def calculate_speedup(T1, TN):
+    return T1 / TN
+
+# Generar gràfics dels resultats
+def plot_results(results):
+    x = ['100 Texts', '500 Texts', '1000 Texts', '1500 Texts', '2000 Texts']
+    
+    # Generar gràfiques per a cada tipus d'anàlisi
+    plt.figure(figsize=(12, 8))
+    
+    plt.subplot(1, 2, 1)
+    plt.bar(x, results['single_node'], color='blue')
+    plt.xlabel('Nombre de Textos')
+    plt.ylabel('Temps en segons')
+    plt.title('Single Node')
+
+    plt.subplot(1, 2, 2)
+    plt.bar(x, results['static_scaling'], color='green')
+    plt.xlabel('Nombre de Textos')
+    plt.ylabel('Temps en segons')
+    plt.title('Static Scaling')
+
+    plt.tight_layout()
+    plt.show()
+
+# Funció per imprimir el Speedup per a cada anàlisi
+def print_speedup(results):
+    # Calcular Speedup per a cada volum de textos
+    for i, num_texts in enumerate([100, 500, 1000, 1500, 2000]):
+        T1 = results["single_node"][i]
+        TN_static = results["static_scaling"][i]
+        
+        print(f"\nSpeedup per a {num_texts} textos:")
+        print(f"Speedup (Static Scaling): {calculate_speedup(T1, TN_static)}")
+
 if __name__ == "__main__":
-    print("Anàlisi de rendiment en un únic node:")
-    single_node_performance()
-    
-    print("\nAnàlisi d'escalabilitat estàtica:")
-    static_scaling_performance()
-    
-    print("\nAnàlisi d'escalabilitat dinàmica:")
-    dynamic_scaling_performance()
+    # Executar els anàlisis
+    results = run_all_tests()
+
+    # Imprimir el Speedup per a cada volum de textos
+    print_speedup(results)
+
+    # Generar gràfics
+    plot_results(results)

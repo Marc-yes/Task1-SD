@@ -27,7 +27,7 @@ class InsultFilter:
                 text = self.task_queue.get()                    #Extraiem la tasca de la coa
                 #insults = self.insult_service.get_insults()
                 filtered_text = text
-                print ("EIOEUOEI")
+                #print ("EIOEUOEI")
                 print(insults)
                 for insult in insults:
                     filtered_text = filtered_text.replace(insult, "CENSORED")
