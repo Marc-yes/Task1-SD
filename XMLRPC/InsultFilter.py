@@ -4,9 +4,18 @@ from threading import Thread
 import xmlrpc.client
 import queue
 
+insults=[]
+
+def get_publication(actualization):
+    global insults 
+    insults = actualization
+    print("Insults Actualitzats")
+    #print (insults)
+
+
 class InsultFilter:
-    def __init__(self, insult_service_url):
-        self.insult_service = xmlrpc.client.ServerProxy(insult_service_url)
+    def __init__(self):#, insult_service_url):
+        #self.insult_service = xmlrpc.client.ServerProxy(insult_service_url)
         self.results = []
         self.task_queue = queue.Queue()
         self.id=-1
@@ -16,8 +25,10 @@ class InsultFilter:
         while True:
             if not self.task_queue.empty():       
                 text = self.task_queue.get()                    #Extraiem la tasca de la coa
-                insults = self.insult_service.get_insults()
+                #insults = self.insult_service.get_insults()
                 filtered_text = text
+                print ("EIOEUOEI")
+                print(insults)
                 for insult in insults:
                     filtered_text = filtered_text.replace(insult, "CENSORED")
                 
@@ -37,17 +48,22 @@ class InsultFilter:
 
 # Crear el servidor XML-RPC per al filtre
 def start_filter_server():
-    filter_service = InsultFilter("http://localhost:8005")      #Aqui indiquem on és l'insult service
-
+    #filter_service = InsultFilter("http://localhost:8005")      #Aqui indiquem on és l'insult service
+    filter_service = InsultFilter()
+    
     # Crear el servidor XML-RPC
     server = SimpleXMLRPCServer(("localhost", 8006), allow_none=True)
     server.register_instance(filter_service)
+    server.register_function(get_publication, 'get_publication')
+    
+    insult_service = xmlrpc.client.ServerProxy("http://localhost:8005")
+    insult_service.subscribe(8006)
     
     # Crear i iniciar treballadors
     filtre = Thread(target=filter_service.filter_text, daemon=True)
     filtre.start()
 
-    print("InsultFilter en execució a http://localhost:8005...")
+    print("InsultFilter en execució a http://localhost:8006...")
     server.serve_forever()
 
 # Inicia el servidor del filtre

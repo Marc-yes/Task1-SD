@@ -1,6 +1,7 @@
 from xmlrpc.server import SimpleXMLRPCServer, XMLRPCDocGenerator
 from xmlrpc.server import SimpleXMLRPCRequestHandler
 from threading import Thread
+import xmlrpc.client
 import random
 import time
 
@@ -9,7 +10,7 @@ class RequestHandler(SimpleXMLRPCRequestHandler):
     rpc_paths=('/RPC2',)
 
 
-insults = []
+insults = ["hilipolles", "ruc"]
 subscribers = []
 
 #Definim les funcions del servidor
@@ -31,12 +32,13 @@ def subscribe(subscriber_url):
 def insult_broadcast():
     while True:
         if subscribers and insults:
-            insult = random.choice(insults)
             for subscriber in subscribers:
                 try:
-                    #client = XMLRPCDocGenerator.client.ServerProxy(subscriber)
-                    #client.receive_insult(insult)
-                    print("Insult", insult)
+                    path = "http://localhost:"+str(subscriber)
+                    sub = xmlrpc.client.ServerProxy(path)
+                    
+                    sub.get_publication(insults)
+                    
                 except Exception as e:
                     print(f"Error enviant insult a {subscriber}: {e}")
         time.sleep(5)
