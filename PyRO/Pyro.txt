@@ -1,0 +1,2 @@
+Per a que funcioni Pyro:
+python -m Pyro4.naming
