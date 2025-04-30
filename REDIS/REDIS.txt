@@ -7,3 +7,6 @@ redis-server
 
 Hem utilitzat sets enves de llistes en aquest cas, perquè ens son un tipo de llistes que no permeten elements repetits.
 Això ens serveix perquè no té sentit guardar un mateix insult dues vegades.
+
+
+En aquest hem fet que l'insult filtre obtingui els insults del servei REDIS enves del Broadcast per simplicitat.
