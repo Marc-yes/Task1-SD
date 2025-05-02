@@ -1,7 +1,7 @@
 Per a que funcioni:
 pip install redis
 
-S'ha de activar el servei Redis:
+S'ha de activar el servei Redis abans de utilitzar-lo:
 redis-server 
 
 
