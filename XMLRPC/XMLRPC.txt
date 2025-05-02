@@ -1,0 +1,2 @@
+Per als gràfics:
+pip install matplotlib
