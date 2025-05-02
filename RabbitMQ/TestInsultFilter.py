@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
-from InsultFilter import InsultFilter  
+from InsultFilter import InsultFilter  # Assuming InsultFilter code is in insult_filter.py
 
 class TestInsultFilter(unittest.TestCase):
     
@@ -23,16 +23,30 @@ class TestInsultFilter(unittest.TestCase):
     def test_callback_insults(self):
         # Simulate receiving the list of insults
         insults = "tonto,idiota,imbécil"
-        self.filter.callback_insults(self.mock_channel, None, None, insults.encode())
-        # Check if the insults list is updated correctly
+        # Simulate the `method` object with a fake `delivery_tag`
+        mock_method = MagicMock()
+        mock_method.delivery_tag = "1234"
+        
+        # Call the callback method with the mock channel and method
+        self.filter.callback_insults(self.mock_channel, mock_method, None, insults.encode())
+        
+        # Check if the insults list was updated correctly
         self.assertEqual(self.filter.insults_list, ["tonto", "idiota", "imbécil"])
+        # Ensure that basic_ack was called with the correct delivery_tag
+        self.mock_channel.basic_ack.assert_called_with(delivery_tag="1234")
 
     def test_callback_text(self):
         # Simulate receiving a text from the queue
         text = "Eres un tonto"
-        self.filter.callback_text(self.mock_channel, None, None, text.encode())
-        # Check if the text was processed and filtered
-        self.mock_channel.basic_ack.assert_called()
+        # Simulate the `method` object with a fake `delivery_tag`
+        mock_method = MagicMock()
+        mock_method.delivery_tag = "5678"
+        
+        # Call the callback method with the mock channel and method
+        self.filter.callback_text(self.mock_channel, mock_method, None, text.encode())
+        
+        # Ensure that the text was processed and filtered
+        self.mock_channel.basic_ack.assert_called_with(delivery_tag="5678")
         
 if __name__ == '__main__':
     unittest.main()
