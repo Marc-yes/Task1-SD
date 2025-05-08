@@ -9,7 +9,7 @@ insults=[]
 def get_publication(actualization):
     global insults 
     insults = actualization
-    print("Insults Actualitzats")
+    print("Insults Actualitzats", insults)
     #print (insults)
 
 

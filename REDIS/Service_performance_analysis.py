@@ -5,90 +5,85 @@ from multiprocessing import Process
 import matplotlib.pyplot as plt
 
 # Configuració
-client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-queue_name = "task_queue"
-num_messages = 10000
-filter_script = "InsultService.py"
+redis_host = 'localhost'
+redis_port = 6379
+set_name = "insults_channel"
+num_operations = 2000
 
-# Textos a enviar
-def generate_texts(n):
-    return [f"Missatge {i}: burro i rata, hola mariquita, guapo, tonto" for i in range(n)]
+# Funcions per a test
 
-# Llançar una instància de filtre
-def start_filter():
-    subprocess.run(["python3", filter_script])
+def insert_insults():
+    r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+    for i in range(num_operations):
+        r.sadd(set_name, f"insult_{i}")
 
-# Benchmark per un nombre determinat de nodes
-def run_test_with_nodes(n_nodes):
-    print(f"\n--- Test amb {n_nodes} node(s) de filtre ---")
+def query_insults():
+    r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+    for _ in range(num_operations):
+        r.smembers(set_name)
 
-    # Netejar la cua abans de començar
-    client.delete(queue_name)
+def run_test_with_nodes(n_nodes, task):
+    print(f"\n--- Test amb {n_nodes} node(s) per a {task.__name__} ---")
 
-    # Llançar els processos del filtre
+    client = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+    client.delete(set_name)
+
+    # Preparar processos
     processes = []
+    start_time = time.time()
     for _ in range(n_nodes):
-        p = Process(target=start_filter)
+        p = Process(target=task)
         p.start()
         processes.append(p)
-        time.sleep(1)
 
-    time.sleep(2)
-    # Enviar textos
-    texts = generate_texts(num_messages)
-    start_time = time.time()
-    for text in texts:
-        client.rpush(queue_name, text)
-
-    # Esperar que la cua es buidi
-    while client.llen(queue_name) > 0:
-        time.sleep(0.01)
-
-    end_time = time.time()
-    elapsed = end_time - start_time
-
-    print(f"Temps total amb {n_nodes} node(s): {elapsed:.2f} segons")
-
-    # Finalitzar processos
     for p in processes:
-        p.terminate()
         p.join()
-        
-    processes.clear()
+    end_time = time.time()
 
+    elapsed = end_time - start_time
+    print(f"Temps total amb {n_nodes} node(s): {elapsed:.2f} segons")
     return elapsed
 
 if __name__ == "__main__":
     node_counts = [1, 2, 3]
-    times = []
+    insert_times = []
+    query_times = []
 
     for n in node_counts:
-        elapsed = run_test_with_nodes(n)
-        times.append(elapsed)
+        insert_times.append(run_test_with_nodes(n, insert_insults))
+        query_times.append(run_test_with_nodes(n, query_insults))
 
     # Calcular speedups
-    base_time = times[0]
-    speedups = [round(base_time / t, 2) for t in times]
+    insert_speedups = [round(insert_times[0] / t, 2) for t in insert_times]
+    query_speedups = [round(query_times[0] / t, 2) for t in query_times]
 
     # Mostrar resultats
-    print("\n--- Speedups ---")
-    for n, s in zip(node_counts, speedups):
+    print("\n--- Speedups d'inserció ---")
+    for n, s in zip(node_counts, insert_speedups):
         print(f"{n} node(s): speedup = {s}")
 
-    # Gràfic
-    plt.figure(figsize=(10, 5))
+    print("\n--- Speedups de consulta ---")
+    for n, s in zip(node_counts, query_speedups):
+        print(f"{n} node(s): speedup = {s}")
+
+    # Gràfics
+    plt.figure(figsize=(12, 6))
 
     plt.subplot(1, 2, 1)
-    plt.plot(node_counts, times, marker='o')
+    plt.plot(node_counts, insert_times, marker='o', label='Inserció')
+    plt.plot(node_counts, query_times, marker='o', label='Consulta')
     plt.title('Temps total per nombre de nodes')
     plt.xlabel('Nombre de nodes')
-    plt.ylabel('Temps (segons)')
+    plt.ylabel('Temps (s)')
+    plt.legend()
 
     plt.subplot(1, 2, 2)
-    plt.plot(node_counts, speedups, marker='o', color='green')
-    plt.title('Speedup per nombre de nodes')
+    plt.plot(node_counts, insert_speedups, marker='o', label='Inserció')
+    plt.plot(node_counts, query_speedups, marker='o', label='Consulta')
+    plt.title('Speedups per nombre de nodes')
     plt.xlabel('Nombre de nodes')
     plt.ylabel('Speedup')
+    plt.legend()
 
     plt.tight_layout()
     plt.show()

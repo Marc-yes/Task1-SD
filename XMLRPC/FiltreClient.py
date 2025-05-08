@@ -6,7 +6,7 @@ s = xmlrpc.client.ServerProxy('http://localhost:8006')
 
 texts = ["Ey, ets un tonto i una sorra. No haguessa dit mai lo cretino que ets", "Ets molt guapet, ho sabies?", "La sorra de ta mare"]
 
-# Afegir insults
+# Afegir text
 def fer_peticio(text):
     id=s.add_task(text)
     time.sleep(1)

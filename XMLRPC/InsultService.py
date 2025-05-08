@@ -1,24 +1,30 @@
-from xmlrpc.server import SimpleXMLRPCServer, XMLRPCDocGenerator
+from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
 from threading import Thread
 import xmlrpc.client
-import random
 import time
 
-# Restrict to a particular path.
+# RequestHandler personalitzat
 class RequestHandler(SimpleXMLRPCRequestHandler):
-    rpc_paths=('/RPC2',)
+    rpc_paths = ('/RPC2',)
 
+# # Servidor silenciat
+# class QuietXMLRPCServer(SimpleXMLRPCServer):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
 
-insults = ["hilipolles", "ruc"]
+#     def log_request(self, code='-', size='-'):
+#         pass  # No imprimeix res
+
+# insults = ["hilipolles", "ruc"]
+insults = []
 subscribers = []
 
-#Definim les funcions del servidor
 def add_insult(insult):
     if insult not in insults:
         insults.append(insult)
         return "Insult afegit"
-    return "L\'insult ja estava afegit"
+    return "L'insult ja estava afegit"
 
 def get_insults():
     return insults
@@ -34,16 +40,12 @@ def insult_broadcast():
         if subscribers and insults:
             for subscriber in subscribers:
                 try:
-                    path = "http://localhost:"+str(subscriber)
-                    sub = xmlrpc.client.ServerProxy(path)
-                    
+                    sub = xmlrpc.client.ServerProxy(f"http://localhost:{subscriber}")
                     sub.get_publication(insults)
-                    
                 except Exception as e:
                     print(f"Error enviant insult a {subscriber}: {e}")
         time.sleep(5)
 
-#Resgistrem les funcions amb un nom en concret
 def start_server():
     try:
         with SimpleXMLRPCServer(('localhost', 8005), requestHandler=RequestHandler) as server:
@@ -59,11 +61,9 @@ def start_server():
 
             print("InsultService en execució a http://localhost:8005...")
             server.serve_forever()
-    
+            
     except Exception as e:
         print(f"Error al iniciar el servidor: {e}")
 
-
-# Inicia el servidor
 if __name__ == "__main__":
     start_server()
