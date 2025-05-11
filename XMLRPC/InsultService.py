@@ -9,23 +9,10 @@ import random
 class RequestHandler(SimpleXMLRPCRequestHandler):
     rpc_paths = ('/RPC2',)
 
-# # Servidor silenciat
-# class QuietXMLRPCServer(SimpleXMLRPCServer):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-
-#     def log_request(self, code='-', size='-'):
-#         pass  # No imprimeix res
 
 insults = []
 subscribers = []
 tasks = []
-
-# def add_insult(insult):
-#     if insult not in insults:
-#         insults.append(insult)
-#         return "Insult afegit"
-#     return "L'insult ja estava afegit"ç
 
 def add_insult():
     while True:

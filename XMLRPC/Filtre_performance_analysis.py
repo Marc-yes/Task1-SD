@@ -1,94 +1,100 @@
-import redis
-import time
 import subprocess
+import time
 from multiprocessing import Process
+import xmlrpc.client
 import matplotlib.pyplot as plt
 
-# Configuració
-client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-queue_name = "task_queue"
-num_messages = 10000
-filter_script = "InsultFilter.py"
+port=[8007, 8008, 8009]
+n_pet=[1000, 3000, 5000]
+texts=[]
 
-# Textos a enviar
-def generate_texts(n):
-    return [f"Missatge {i}: burro i rata, hola mariquita, guapo, tonto" for i in range(n)]
 
-# Llançar una instància de filtre
-def start_filter():
-    subprocess.run(["python3", filter_script])
+def init_insults(act_n_p):
+    global texts
+    i=0
+    for i in range(act_n_p):
+        texts.append(f"Ets un tonto, burro, i a mes un capsot")
+    
 
-# Benchmark per un nombre determinat de nodes
-def run_test_with_nodes(n_nodes):
-    print(f"\n--- Test amb {n_nodes} node(s) de filtre ---")
+def init_service(p):
+    return subprocess.Popen(["python3", "InsultFilter.py", f"{p}"])
 
-    # Netejar la cua abans de començar
-    client.delete(queue_name)
 
-    # Llançar els processos del filtre
+def run_performance(n_nodes, act_n_p):
+    global texts
     processes = []
-    for _ in range(n_nodes):
-        p = Process(target=start_filter)
-        p.start()
+    nodes = []
+    
+    for i in range(n_nodes):
+        p=init_service(port[i])
+        nodes.append(xmlrpc.client.ServerProxy(f'http://localhost:{port[i]}'))
         processes.append(p)
-        time.sleep(1)
 
-    time.sleep(2)
-    # Enviar textos
-    texts = generate_texts(num_messages)
-    start_time = time.time()
-    for text in texts:
-        client.rpush(queue_name, text)
-
-    # Esperar que la cua es buidi
-    while client.llen(queue_name) > 0:
-        time.sleep(0.01)
-
-    end_time = time.time()
-    elapsed = end_time - start_time
-
-    print(f"Temps total amb {n_nodes} node(s): {elapsed:.2f} segons")
-
-    # Finalitzar processos
+    #Assegurem que els servidors estan preparats per rebre peticions
+    time.sleep(2)   
+    
+    start = time.time()
+    
+    #Repartim la carrega de treball per tants nodes com tinguem
+    i=0
+    while i < act_n_p:
+        for j in range(n_nodes):
+            if (i < act_n_p):               #Ens assegurem que queden texts per tractar
+                nodes[j].add_task(texts[i])
+                i = i + 1
+    
+    end = time.time()
+    
+    elapsed = end - start
+    
     for p in processes:
         p.terminate()
-        p.join()
         
     processes.clear()
+    
+    print(f"Temps total amb {n_nodes} node(s): {elapsed:.2f} segons")
 
     return elapsed
-
+        
+    
 if __name__ == "__main__":
-    node_counts = [1, 2, 3]
-    times = []
+    nodes=[1, 2, 3]
+    
+    for actual_n_pet in n_pet:
+        print(f"\nProvant amb {actual_n_pet} peticions:")
+        times = []
+    
+        init_insults(actual_n_pet)
+        
+        for i in nodes:
+            elapsed = run_performance(i, actual_n_pet)
+            times.append(elapsed)
+        
+        # Calcular speedups
+        base_time = times[0]
+        speedups = [round(base_time / t, 2) for t in times]
+        
+        # Mostrar resultats
+        print("\n--- Speedups ---")
+        for n, s in zip(nodes, speedups):
+            print(f"{n} node(s): speedup = {s}")
 
-    for n in node_counts:
-        elapsed = run_test_with_nodes(n)
-        times.append(elapsed)
+        # Gràfic
+        plt.figure(figsize=(10, 5))
 
-    # Calcular speedups
-    base_time = times[0]
-    speedups = [round(base_time / t, 2) for t in times]
+        plt.subplot(1, 2, 1)
+        plt.plot(nodes, times, marker='o')
+        plt.title('Temps total per nombre de nodes')
+        plt.xlabel('Nombre de nodes')
+        plt.ylabel('Temps (segons)')
 
-    # Mostrar resultats
-    print("\n--- Speedups ---")
-    for n, s in zip(node_counts, speedups):
-        print(f"{n} node(s): speedup = {s}")
+        plt.subplot(1, 2, 2)
+        plt.plot(nodes, speedups, marker='o', color='green')
+        plt.title('Speedup per nombre de nodes')
+        plt.xlabel('Nombre de nodes')
+        plt.ylabel('Speedup')
 
-    # Gràfic
-    plt.figure(figsize=(10, 5))
+        plt.tight_layout()
+        plt.show()
 
-    plt.subplot(1, 2, 1)
-    plt.plot(node_counts, times, marker='o')
-    plt.title('Temps total per nombre de nodes')
-    plt.xlabel('Nombre de nodes')
-    plt.ylabel('Temps (segons)')
-
-    plt.subplot(1, 2, 2)
-    plt.plot(node_counts, speedups, marker='o', color='green')
-    plt.title('Speedup per nombre de nodes')
-    plt.xlabel('Nombre de nodes')
-    plt.ylabel('Speedup')
-
-    plt.tight_layout()
-    plt.show()
+    

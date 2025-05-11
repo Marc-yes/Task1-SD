@@ -8,26 +8,19 @@ port=[8007, 8008, 8009]
 n_pet=[1000, 3000, 5000]
 insults=[]
 
-#insult_service_url = "http://localhost:8005"
-#s = xmlrpc.client.ServerProxy('http://localhost:8005')
-#InsultService_proxy = xmlrpc.client.ServerProxy('http://localhost:8005')
-
 
 def init_insults(act_n_p):
     global insults
     i=0
     for i in range(act_n_p):
-        #print(f"insults{i}")
         insults.append(f"Insult_{i}")
     
 
 def init_service(p):
-    #print(f"############{p}###############")
     return subprocess.Popen(["python3", "SubInsultService.py", f"{p}"])
 
 
 def run_performance(n_nodes, act_n_p):
-    #s = xmlrpc.client.ServerProxy('http://localhost:8009')
     global insults
     processes = []
     nodes = []
@@ -49,7 +42,7 @@ def run_performance(n_nodes, act_n_p):
             if (i < act_n_p):               #Ens assegurem que queden insults per tractar
                 nodes[j].add_insult(insults[i])
                 i = i + 1            
-    print(f"\n{i} peticions enviades\n")
+    # print(f"\n{i} peticions enviades\n")
     
     end = time.time()
     

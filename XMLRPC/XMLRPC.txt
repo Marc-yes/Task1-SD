@@ -5,3 +5,5 @@ Per a decicions de disseny
 Al principi sol teniem un unic InsultService, però per a poder crear varios nodes, hem ideat crear aquesta estructura
 amb un InsultService principal, i un subInsultService que es pot instanciar varies vegades. Aixo per mantenir una coerencia
 amb la llista de insults. Per a tenir una unica llista de insults i no una per cada node.
+
+Per a fer el estres test del InsultService, primer s'ha d'engegar el InsultService
