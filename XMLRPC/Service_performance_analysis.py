@@ -4,45 +4,52 @@ from multiprocessing import Process
 import xmlrpc.client
 import matplotlib.pyplot as plt
 
-n_pet=10000
+port=[8007, 8008, 8009]
+n_pet=[1000, 3000, 5000]
 insults=[]
 
 #insult_service_url = "http://localhost:8005"
 #s = xmlrpc.client.ServerProxy('http://localhost:8005')
+#InsultService_proxy = xmlrpc.client.ServerProxy('http://localhost:8005')
 
 
-def init_insults():
+def init_insults(act_n_p):
     global insults
     i=0
-    for i in range(n_pet):
+    for i in range(act_n_p):
+        #print(f"insults{i}")
         insults.append(f"Insult_{i}")
-        
-    return insults
     
 
-def init_service():
-    subprocess.run(["python3", "InsultService.py"])
+def init_service(p):
+    #print(f"############{p}###############")
+    return subprocess.Popen(["python3", "SubInsultService.py", f"{p}"])
 
 
-def run_performance(n_nodes):
-    s = xmlrpc.client.ServerProxy('http://localhost:8009')
+def run_performance(n_nodes, act_n_p):
+    #s = xmlrpc.client.ServerProxy('http://localhost:8009')
     global insults
     processes = []
+    nodes = []
     
     for i in range(n_nodes):
-        p=Process(target=init_service)
+        p=init_service(port[i])
+        nodes.append(xmlrpc.client.ServerProxy(f'http://localhost:{port[i]}'))
         processes.append(p)
-        p.start()
 
-    time.sleep(2)   #Assegurem que els servidors estan preparats per rebre peticions
+    #Assegurem que els servidors estan preparats per rebre peticions
+    time.sleep(2)   
     
     start = time.time()
     
-    for insult in insults:
-        s.add_insult(insult)
-    
-    for _ in range(n_pet):
-        s.get_insults()
+    #Repartim la carrega de treball per tants nodes com tinguem
+    i=0
+    while i < act_n_p:
+        for j in range(n_nodes):
+            if (i < act_n_p):               #Ens assegurem que queden insults per tractar
+                nodes[j].add_insult(insults[i])
+                i = i + 1            
+    print(f"\n{i} peticions enviades\n")
     
     end = time.time()
     
@@ -50,49 +57,52 @@ def run_performance(n_nodes):
     
     for p in processes:
         p.terminate()
-        p.join()
         
     processes.clear()
     
     print(f"Temps total amb {n_nodes} node(s): {elapsed:.2f} segons")
 
-    
     return elapsed
         
     
 if __name__ == "__main__":
     nodes=[1, 2, 3]
-    times = []
     
-    for i in nodes:
-        elapsed = run_performance(i)
-        times.append(elapsed)
+    for actual_n_pet in n_pet:
+        print(f"\nProvant amb {actual_n_pet} peticions:")
+        times = []
     
-    # Calcular speedups
-    base_time = times[0]
-    speedups = [round(base_time / t, 2) for t in times]
+        init_insults(actual_n_pet)
+        
+        for i in nodes:
+            elapsed = run_performance(i, actual_n_pet)
+            times.append(elapsed)
+        
+        # Calcular speedups
+        base_time = times[0]
+        speedups = [round(base_time / t, 2) for t in times]
+        
+        # Mostrar resultats
+        print("\n--- Speedups ---")
+        for n, s in zip(nodes, speedups):
+            print(f"{n} node(s): speedup = {s}")
 
-    # Mostrar resultats
-    print("\n--- Speedups ---")
-    for n, s in zip(nodes, speedups):
-        print(f"{n} node(s): speedup = {s}")
+        # Gràfic
+        plt.figure(figsize=(10, 5))
 
-    # Gràfic
-    plt.figure(figsize=(10, 5))
+        plt.subplot(1, 2, 1)
+        plt.plot(nodes, times, marker='o')
+        plt.title('Temps total per nombre de nodes')
+        plt.xlabel('Nombre de nodes')
+        plt.ylabel('Temps (segons)')
 
-    plt.subplot(1, 2, 1)
-    plt.plot(nodes, times, marker='o')
-    plt.title('Temps total per nombre de nodes')
-    plt.xlabel('Nombre de nodes')
-    plt.ylabel('Temps (segons)')
+        plt.subplot(1, 2, 2)
+        plt.plot(nodes, speedups, marker='o', color='green')
+        plt.title('Speedup per nombre de nodes')
+        plt.xlabel('Nombre de nodes')
+        plt.ylabel('Speedup')
 
-    plt.subplot(1, 2, 2)
-    plt.plot(nodes, speedups, marker='o', color='green')
-    plt.title('Speedup per nombre de nodes')
-    plt.xlabel('Nombre de nodes')
-    plt.ylabel('Speedup')
-
-    plt.tight_layout()
-    plt.show()
+        plt.tight_layout()
+        plt.show()
 
     
