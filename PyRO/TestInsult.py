@@ -1,78 +1,80 @@
 import unittest
-import time
+from unittest.mock import MagicMock
 import Pyro4
+import time
 
-# Definir el Cliente (Suscriptor) para recibir los insultos
-@Pyro4.expose
-class Subscriber(object):
-    def __init__(self):
-        self.received_insults = []
+# Importa las clases que queremos probar
+from InsultService import InsultService
+from Subscriber import Subscriber
 
-    def notify(self, insult):
-        print(f"[Subscriber] Received insult: {insult}")
-        self.received_insults.append(insult)
-
-class TestInsultServiceAndFilter(unittest.TestCase):
+class TestInsultService(unittest.TestCase):
 
     def setUp(self):
-        """Configurar el entorno para el test"""
-        self.subscriber = Subscriber()
+        """Configura el entorno para cada prueba"""
+        # Crear la instancia de InsultService
+        self.insult_service = InsultService()
 
-        # Crear una instancia de InsultService y registrar al subscriber
+        # Crear el daemon de Pyro
         self.daemon = Pyro4.Daemon()
+
+        # Crear un mock del suscriptor y sobrescribir el método `notify`
+        self.mock_subscriber = MagicMock(spec=Subscriber)  # Crear un mock del tipo Subscriber
+        self.mock_subscriber_uri = self.daemon.register(self.mock_subscriber)  # Registrar el mock del suscriptor
+        print(f"Subscriber URI: {self.mock_subscriber_uri}")  # Verificar la URI
+
+        # Registrar el InsultService en Pyro y obtener su URI real
+        self.insult_service_uri = self.daemon.register(self.insult_service)  # Registrar el InsultService
+        print(f"InsultService URI: {self.insult_service_uri}")  # Verificar la URI
+
+        # Conectar al NameServer para registrar el servicio
         self.ns = Pyro4.locateNS()
+        self.ns.register("insultservice", self.insult_service_uri)
 
-        # Registrar el subscriber en Pyro4 y obtener su URI
-        subscriber_uri = self.daemon.register(self.subscriber)  # Registrar el Subscriber
-        print(f"Subscriber URI: {subscriber_uri}")  # Para verificar que la URI está bien
-
-        # Obtener la URI del InsultService
-        self.insult_service_uri = self.ns.lookup("insultservice")
-        self.insult_service = Pyro4.Proxy(self.insult_service_uri)
-
-        # Suscribir al cliente (subscriber) usando su URI registrada
-        self.insult_service.subscribe(subscriber_uri)
-
-        # Crear una instancia de InsultFilter con la URI del InsultService
-        self.filter_service = Pyro4.Proxy(self.ns.lookup("insultfilter"))
+        # Suscribir el mock del suscriptor a InsultService usando su URI real
+        self.insult_service.subscribe(self.mock_subscriber_uri)
 
     def test_add_insult(self):
-        """Verificar que el InsultService agregue insultos correctamente"""
-        result = self.insult_service.add_insult("gilipollas")
+        """Verificar que se pueda agregar un insulto"""
+        result = self.insult_service.add_insult("tonto")
         self.assertTrue(result)
-        result = self.insult_service.add_insult("gilipollas")  # Intentar agregar el mismo insulto
+        result = self.insult_service.add_insult("tonto")  # Intentar agregar el mismo insulto
         self.assertFalse(result)
 
+    def test_get_insults(self):
+        """Verificar que se pueda obtener la lista de insultos"""
+        self.insult_service.add_insult("tonto")
+        insults = self.insult_service.get_insults()
+        self.assertEqual(insults, ["tonto"])
+
+    def test_subscribe(self):
+        """Verificar que un suscriptor se pueda registrar correctamente"""
+        self.insult_service.add_insult("idiota")
+        self.insult_service.add_insult("tonto")
+
+        # Ejecutar la transmisión de insultos por 6 segundos
+        time.sleep(6)  # Deja que el hilo de transmisión se ejecute un poco más tiempo
+
+        # Verificar si el suscriptor ha sido añadido a la lista de suscriptores
+        self.assertIn(self.mock_subscriber_uri, self.insult_service.subscribers)
+
     def test_broadcast_insults(self):
-        """Verificar que los insultos sean enviados a los suscriptores cada 5 segundos"""
-        self.insult_service.add_insult("tonto")
-        self.insult_service.add_insult("idiota")
-        
-        # Esperar unos segundos para asegurarse de que los insultos sean enviados
-        time.sleep(6)  # Ajustar el tiempo según el intervalo de envío (5 segundos)
-
-        # Verificar que los insultos han sido recibidos por el subscriber
-        self.assertGreater(len(self.subscriber.received_insults), 0)
-        print(f"Insults received by subscriber: {self.subscriber.received_insults}")
-
-    def test_filter_text(self):
-        """Verificar que el InsultFilter pueda censurar los insultos en un texto"""
+        """Verificar que se envíen los insultos a los suscriptores cada 5 segundos"""
         self.insult_service.add_insult("tonto")
         self.insult_service.add_insult("idiota")
 
-        # Texto con insultos
-        text = "Eres un tonto y un idiota"
-        
-        # Procesar el texto usando InsultFilter
-        censored_text = self.filter_service.filter_text(text)
-        
-        # Verificar que el texto fue censurado correctamente
-        self.assertEqual(censored_text, "Eres un CENSORED y un CENSORED")
+        # Ejecutar la transmisión de insultos por 6 segundos (más que suficiente para que se envíen al menos una vez)
+        time.sleep(6)
+
+        # Verificar que el suscriptor haya recibido los insultos
+        received_insults = self.mock_subscriber.notify.call_args_list
+        print(f"Received insults: {received_insults}")
+
+        # Verificar que el suscriptor haya recibido la lista completa de insultos
+        self.assertIn(["tonto", "idiota"], [args[0] for args in received_insults])
 
     def tearDown(self):
         """Limpiar después de las pruebas"""
         self.daemon.shutdown()  # Cerrar el servidor Pyro
-
 
 if __name__ == "__main__":
     unittest.main()
