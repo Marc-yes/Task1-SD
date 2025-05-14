@@ -1,13 +1,15 @@
 import xmlrpc.client
 import redis
 
+
 # Connect to Redis
-client = redis.Redis(host='localhost', port=6379, db=0,
-decode_responses=True)
-channel_name = "Insult_Service"
+r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+# Definim els canals que s'utilitzaran
+pubsub_channel = "pubsub_channel"
 
 # Crear client per connectar-se a InsultServer
-s = xmlrpc.client.ServerProxy('http://localhost:6005')
+s = xmlrpc.client.ServerProxy('http://localhost:8006')
 
 insults=[]
 
@@ -19,13 +21,10 @@ print(s.add_insult("cretino"))
 # Obtenir insults
 print(s.get_insults())
 
-# Subscripció al servei per rebre insults
-channel=s.get_channel()
-print(channel)
 
-pubsub = client.pubsub()
-pubsub.subscribe(channel_name)
-print(f"Ets insultat per {channel_name}, waiting for insults...")
+pubsub = r.pubsub()
+pubsub.subscribe(pubsub_channel)
+print(f"Ets insultat per {pubsub_channel}, waiting for insults...")
 
 # Continuously listen for insults
 for insult in pubsub.listen():

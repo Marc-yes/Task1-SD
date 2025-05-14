@@ -1,6 +1,5 @@
 import redis
 import time
-import subprocess
 from multiprocessing import Process
 import matplotlib.pyplot as plt
 
