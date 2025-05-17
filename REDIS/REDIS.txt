@@ -1,7 +1,7 @@
 Per a que funcioni:
 pip install redis
 
-S'ha de activar el servei Redis:
+S'ha de activar el servei Redis abans de utilitzar-lo:
 redis-server 
 
 
@@ -10,3 +10,6 @@ Això ens serveix perquè no té sentit guardar un mateix insult dues vegades.
 
 
 En aquest hem fet que l'insult filtre obtingui els insults del servei REDIS enves del Broadcast per simplicitat.
+
+En aquest cas, el REDIS es el propi insultService. Per tant, com més peticions rebi, més temps tardarà en tractar-les, perque
+totes les instancies de redis comparteixen els mateixos recursos.
