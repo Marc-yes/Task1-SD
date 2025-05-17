@@ -122,6 +122,22 @@ if __name__ == "__main__":
         all_times.append(times)
         
         
+    for ti in times_single_node:
+        print(f"{ti}")
+        
+        
+    for ti in all_times:
+        print(f"{ti}")
+        
+        
+    for ti in n_nodes_total:
+        print(f"{ti}")
+        
+        
+    for ti in all_speedups:
+        print(f"{ti}")
+        
+        
     # Mostrar resultats
     print("\n--- Speedups ---")
     for ts, t, n, s in zip(times_single_node, all_times, n_nodes_total, all_speedups):

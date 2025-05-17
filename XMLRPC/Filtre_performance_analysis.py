@@ -9,7 +9,7 @@ n_pet=[1000, 3000, 5000]
 texts=[]
 
 
-def init_insults(act_n_p):
+def init_texts(act_n_p):
     global texts
     i=0
     for i in range(act_n_p):
@@ -64,7 +64,7 @@ if __name__ == "__main__":
         print(f"\nProvant amb {actual_n_pet} peticions:")
         times = []
     
-        init_insults(actual_n_pet)
+        init_texts(actual_n_pet)
         
         for i in nodes:
             elapsed = run_performance(i, actual_n_pet)

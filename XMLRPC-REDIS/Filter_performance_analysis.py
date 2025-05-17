@@ -6,37 +6,36 @@ import matplotlib.pyplot as plt
 import redis
 
 r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-
+text_set = "text_set"
 
 port=[8007, 8008, 8009, 8010, 8011, 8012, 8013, 8014, 8015, 8016]
 n_pet=[1000, 3000, 5000, 10000, 13000, 18000, 20000]
-insults=[]
+texts=[]
 max_nodes = 10  # Nombre màxim de nodes
 
 # Configuració per al càlcul dinàmic
 T = 0.1  # Temps de processament mitjà per missatge (segons per missatge)
-C = 16  # Capacitat d'un sol treballador (missatges per segon)
+C = 14  # Capacitat d'un sol treballador (missatges per segon)
 total_time = 10
 
-
-def init_insults(act_n_p):
-    global insults
+def init_texts(act_n_p):
+    global texts
     i=0
     for i in range(act_n_p):
-        insults.append(f"Insult_{i}")
+        texts.append(f"Ets un tonto, burro, i a mes un capsot")
     
 
 def init_service(p):
-    return subprocess.Popen(["python3", "InsultService.py", f"{p}"])
+    return subprocess.Popen(["python3", "InsultFilter.py", f"{p}"])
 
-# Càlcul dinàmic del nombre de nodes basat en la fórmula
+
 def calculate_required_nodes(act_n_pet):
     N = ((act_n_pet/total_time) * T) / C
     return N
 
 
 def run_performance(n_nodes, act_n_p):
-    global insults
+    global texts
     processes = []
     nodes = []
     
@@ -50,17 +49,18 @@ def run_performance(n_nodes, act_n_p):
     
     start = time.time()
     
+    print(f"NO AQUI, {act_n_p}, {n_nodes}")
+    
     #Repartim la carrega de treball per tants nodes com tinguem
     i=0
     while i < act_n_p:
         for j in range(n_nodes):
-            if (i < act_n_p):               #Ens assegurem que queden insults per tractar
-                nodes[j].add_insult(insults[i])
-                i = i + 1            
-    # print(f"\n{i} peticions enviades\n")
+            if (i < act_n_p):               #Ens assegurem que queden texts per tractar
+                nodes[j].add_task(texts[i])
+                i = i + 1
     
     end = time.time()
-    
+    print("HIHIHIAHAHHA")
     elapsed = end - start
     
     for p in processes:
@@ -69,9 +69,10 @@ def run_performance(n_nodes, act_n_p):
     processes.clear()
     
     print(f"Temps total amb {n_nodes} node(s): {elapsed:.2f} segons")
+    print("SISISII")
+    r.spop(text_set, r.scard(text_set))
 
-    r.spop('insult_list', r.scard('insult_list'))
-
+    print("COOM?")
     return elapsed
         
     
@@ -86,11 +87,12 @@ if __name__ == "__main__":
     #Primer fem el cas amb un sol node per poder fer el speedup
     for actual_n_pet in n_pet:
     
-        init_insults(actual_n_pet)
+        init_texts(actual_n_pet)
         
         elapsed = run_performance(1, actual_n_pet)
         
         times_single_node.append(elapsed)
+    
     
     i=0
     
@@ -99,18 +101,18 @@ if __name__ == "__main__":
         times = []
         
         nodes = calculate_required_nodes(actual_n_pet)
-
+        
         nodes_be = int(nodes)
         
         if (nodes_be <=0):nodes_be = 1
         elif (nodes_be>max_nodes): nodes_be = 10
-
+        
         n_nodes_total.append(nodes_be)
         
-
+        print("aqui")
+        
         elapsed = run_performance(nodes_be, actual_n_pet)
         times.append(elapsed)
-        
         
         # Calcular speedups
         base_time = times_single_node[i]
@@ -120,16 +122,14 @@ if __name__ == "__main__":
         # Guardar resultats per a la gràfica global
         all_speedups.append(speedup)
         all_times.append(times)
-        
-        
+
+
     # Mostrar resultats
     print("\n--- Speedups ---")
     for ts, t, n, s in zip(times_single_node, all_times, n_nodes_total, all_speedups):
         print (f"Temps single: {ts},  Temps en {n}: {t}")
         print(f"{n} node(s): speedup = {s}")
-        
-        
-        
+
     # Generar gràfica amb tots els resultats
     plt.figure(figsize=(12, 6))
 
@@ -156,5 +156,7 @@ if __name__ == "__main__":
     
     for n in n_nodes_total:
         print (f"s'han ussat {n} nodes")
+
+    
 
     

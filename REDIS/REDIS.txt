@@ -13,3 +13,5 @@ En aquest hem fet que l'insult filtre obtingui els insults del servei REDIS enve
 
 En aquest cas, el REDIS es el propi insultService. Per tant, com més peticions rebi, més temps tardarà en tractar-les, perque
 totes les instancies de redis comparteixen els mateixos recursos.
+
+El InsultProducer rep un paràmetre que ser l'insult per a poder enviar tantes peticions al InsultService com vulguem.
