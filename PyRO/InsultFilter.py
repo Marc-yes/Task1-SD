@@ -1,44 +1,50 @@
 import Pyro4
+import sys
+from multiprocessing import Process
 
 @Pyro4.expose
-class InsultFilter(object):
-    def __init__(self, insult_service_uri):
-        self.results = []  # Lista de resultados filtrados
-        self.insult_service = Pyro4.Proxy(insult_service_uri)  # Proxy del servicio InsultService
+class InsultFilter:
+    def __init__(self, name):
+        self.name = name
+        self.insults = []
 
-    def notify(self, insult_list):
-        """Recibir la lista de insultos del InsultService sin hacer nada con ella"""
-        print(f"Received insult list: {insult_list}")
-        self.insults = insult_list  # Almacenar la lista de insultos
+    def receive_insults(self, insult_list):
+        self.insults = insult_list
+        print(f"[{self.name}] Received insults: {self.insults}")
 
     def filter_text(self, text):
-        """Recibir un texto y censurarlo si contiene insultos"""
-        insults = self.insult_service.get_insults()  # Obtener la lista de insultos actualizada
-        censored_text = text
-        
-        # Censurar los insultos en el texto
-        for insult in insults:
-            censored_text = censored_text.replace(insult, "CENSORED")
-        
-        print(f"Filtered text: {censored_text}")
-        self.results.append(censored_text)
-        return censored_text
+        filtered = text
+        for insult in self.insults:
+            filtered = filtered.replace(insult, "CENSORED")
+        print(f"[{self.name}] Filtered text: {filtered}")
+        return filtered
 
-    def get_results(self):
-        """Devolver los textos censurados"""
-        return self.results
+def run_filter(name):
+    daemon = Pyro4.Daemon()
+    ns = Pyro4.locateNS()
 
+    obj = InsultFilter(name)
+    uri = daemon.register(obj)
+    ns.register(name, uri)
+
+    print(f"{name} running at {uri}")
+    daemon.requestLoop()
 
 def main():
-    daemon = Pyro4.Daemon()  # Crea el servidor Pyro
-    ns = Pyro4.locateNS()  # Conecta al NameServer
-    insult_service_uri = ns.lookup("insultservice")  # Obtiene la URI del InsultService registrado
-    filter_service = InsultFilter(insult_service_uri)  # Crea la instancia del servicio InsultFilter
-    uri = daemon.register(filter_service)  # Registra el objeto en Pyro
-    ns.register("insultfilter", uri)  # Registra con el NameServer
-    print(f"InsultFilter is running at {uri}")
+    if len(sys.argv) < 2:
+        print("Uso: python InsultFilter.py <nodos>")
+        sys.exit(1)
 
-    daemon.requestLoop()  # Mantiene el servicio ejecutándose
+    nodes = int(sys.argv[1])
+    procs = []
+    for i in range(1, nodes+1):
+        name = f"insultfilter_{i}"
+        p = Process(target=run_filter, args=(name,))
+        p.start()
+        procs.append(p)
+
+    for p in procs:
+        p.join()
 
 if __name__ == "__main__":
     main()

@@ -1,79 +1,50 @@
 import pika
 import time
-
-# Conexión al servidor RabbitMQ
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-channel = connection.channel()
-
-# Declarar las colas donde se publicarán los insultos y los textos
-channel.queue_declare(queue='insult_queue')
-channel.queue_declare(queue='text_queue')  # Cola para los textos enviados por el cliente
+import sys
 
 class InsultService:
-    def __init__(self, test_mode=False):
-        self.insults = {"tonto", "idiota", "imbécil", "estúpido"}  # Lista de insultos predefinidos
-        self.running = True
-        self.test_mode = test_mode  # Nuevo parámetro para controlar el bucle
-        print("InsultService started...")
-        if self.test_mode:
-            # Solo ejecutamos broadcast_insults una vez durante las pruebas
-            self.broadcast_insults_once()
-        else:
-            self.broadcast_insults()
+    def __init__(self, id_nodo):
+        self.id_nodo = id_nodo
+        self.insultos = {"tonto", "idiota", "imbécil", "estúpido"}
+        self.ejecutando = True
+        self.conexion = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        self.canal = self.conexion.channel()
+        self.canal.queue_declare(queue='insult_queue')
+        self.canal.queue_declare(queue='text_queue')
+        print(f"[InsultService-{self.id_nodo}] Iniciado.")
 
-    def add_insult(self, insult):
-        """Añadir un insulto a la lista si no está ya presente."""
-        if insult not in self.insults:
-            self.insults.add(insult)
-            print(f"Insult added: {insult}")
-            return True
-        return False
+    def transmitir_insultos(self):
+        while self.ejecutando:
+            if self.insultos:
+                mensaje = ",".join(self.insultos)
+                self.canal.basic_publish(exchange='',
+                                         routing_key='insult_queue',
+                                         body=mensaje)
+                print(f"[InsultService-{self.id_nodo}] Insultos enviados: {mensaje}")
+            time.sleep(5)
 
-    def get_insults(self):
-        """Obtener todos los insultos almacenados."""
-        return list(self.insults)
+    def enviar_texto(self, texto):
+        self.canal.basic_publish(exchange='',
+                                 routing_key='text_queue',
+                                 body=texto)
+        print(f"[InsultService-{self.id_nodo}] Texto enviado: {texto}")
 
-    def broadcast_insults(self):
-        """Enviar la lista de insultos cada 5 segundos."""
-        while self.running:
-            if self.insults:
-                insults_list = list(self.insults)
-                message = ",".join(insults_list)
-                channel.basic_publish(exchange='',
-                                      routing_key='insult_queue',
-                                      body=message)
-                print(f"[InsultService] Sent insults: {message}")
-            time.sleep(5)  # Esperar 5 segundos antes de enviar otro lote de insultos
+    def cerrar_conexion(self):
+        self.conexion.close()
 
-    def broadcast_insults_once(self):
-        """Enviar la lista de insultos solo una vez en el modo de prueba."""
-        if self.insults:
-            insults_list = list(self.insults)
-            message = ",".join(insults_list)
+def main():
+    if len(sys.argv) < 2:
+        print("Uso: python insultservice.py <id_nodo>")
+        sys.exit(1)
+    id_nodo = sys.argv[1]
+    servicio = InsultService(id_nodo)
 
-            # En lugar de enviar al canal de RabbitMQ, lo agregamos al mock (si existe)
-            channel.basic_publish(exchange='',
-                                  routing_key='insult_queue',
-                                  body=message)
-            print(f"[InsultService] Sent insults once: {message}")
+    try:
+        servicio.transmitir_insultos()
+    except KeyboardInterrupt:
+        print(f"[InsultService-{id_nodo}] Deteniendo...")
+        servicio.ejecutando = False
+        servicio.cerrar_conexion()
 
-    def process_text(self, text):
-        """Recibe el texto del cliente y lo pasa a la cola 'text_queue'"""
-        channel.basic_publish(exchange='',
-                              routing_key='text_queue',
-                              body=text)
-        print(f"[InsultService] Sent text to InsultFilter: {text}")
-
-# Iniciar el servicio InsultService
-if __name__ == '__main__':
-    service = InsultService(test_mode=True)  # Activar modo de prueba
-
-    # Simulamos que el cliente envía un texto después de un corto periodo
-    time.sleep(2)  # Simulamos el tiempo en que el cliente envía el texto
-    text_to_send = "Eres un tonto y un idiota"
-    service.process_text(text_to_send)  # El cliente envía el texto al InsultService
-
-    # Detener el servicio después de 20 segundos para evitar que se ejecute indefinidamente
-    time.sleep(20)
-    service.running = False
-    print("InsultService stopped.")
+if __name__ == "__main__":
+    main()
