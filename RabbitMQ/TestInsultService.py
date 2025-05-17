@@ -1,48 +1,117 @@
-import unittest
+import pika
 import time
-from unittest.mock import MagicMock
-from InsultService import InsultService
+import random
+import subprocess
+from multiprocessing import Manager
+import threading
+import matplotlib.pyplot as plt
 
-class TestInsultService(unittest.TestCase):
+def launch_insult_service(node_id):
+    return subprocess.Popen(['python3', 'InsultService.py', str(node_id)])
 
-    def setUp(self):
-        # Crear el servicio InsultService con test_mode=True para evitar que se quede bloqueado
-        self.service = InsultService(test_mode=True)  # Activar test_mode para evitar el bucle infinito
-        self.service.channel = MagicMock()  # Usar un mock para el canal de RabbitMQ
+def launch_insult_filter(node_id):
+    return subprocess.Popen(['python3', 'InsultFilter.py', str(node_id)])
 
-    def test_add_insult(self):
-        """Verificar que se puede agregar un insulto"""
-        result = self.service.add_insult("gilipollas")
-        self.assertTrue(result)  # 'gilipollas' es nuevo
+def consume_censored_texts(stop_event, total_expected, received_list):
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+    channel = connection.channel()
+    channel.queue_declare(queue='censored_text_queue')
 
-        result = self.service.add_insult("gilipollas")
-        self.assertFalse(result)  # 'gilipollas' ya existe
+    def callback(ch, method, properties, body):
+        censored_text = body.decode()
+        received_list.append(censored_text)
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+        if len(received_list) >= total_expected:
+            stop_event.set()
 
-    def test_broadcast_insults_once(self):
-        """Verificar que los insultos se envían correctamente una sola vez"""
-        self.service.insults = {"tonto", "idiota"}
-        
-        # Ejecutar una vez el broadcast
-        self.service.broadcast_insults_once()  # Solo ejecutará una vez debido a test_mode=True
-        
-        # Verificar que se haya llamado a basic_publish con el mensaje correcto
-        self.service.channel.basic_publish.assert_called_once_with(
-            exchange='',
-            routing_key='insult_queue',
-            body="tonto,idiota"
-        )
+    channel.basic_consume(queue='censored_text_queue', on_message_callback=callback)
 
-    def test_process_text(self):
-        """Verificar que el texto enviado se publica correctamente en la cola"""
-        text = "Eres un tonto"
-        self.service.process_text(text)
-        
-        # Verificar que el texto fue publicado correctamente en la cola 'text_queue'
-        self.service.channel.basic_publish.assert_called_once_with(
-            exchange='',
-            routing_key='text_queue',
-            body=text
-        )
+    print("Started consuming censored texts...")
+    while not stop_event.is_set():
+        connection.process_data_events(time_limit=1)
 
-if __name__ == '__main__':
-    unittest.main()
+    channel.close()
+    connection.close()
+    print("Stopped consuming censored texts.")
+
+def test_performance(node_count, total_texts):
+    print(f"Starting performance test with {node_count} nodes...")
+
+    insult_service_procs = [launch_insult_service(i+1) for i in range(node_count)]
+    insult_filter_procs = [launch_insult_filter(i+1) for i in range(node_count)]
+
+    time.sleep(5)
+
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+    channel = connection.channel()
+    channel.queue_declare(queue='insult_queue')
+    channel.queue_declare(queue='text_queue')
+    channel.queue_declare(queue='censored_text_queue')
+
+    insults = ["tonto", "idiota", "imbécil", "estúpido"]
+    insult_message = ",".join(insults)
+    channel.basic_publish(exchange='', routing_key='insult_queue', body=insult_message)
+
+    texts_to_send = [f"Eres un {random.choice(insults)} y un {random.choice(insults)}" for _ in range(total_texts)]
+
+    manager = Manager()
+    received_texts = manager.list()
+    stop_event = threading.Event()
+
+    consumer_thread = threading.Thread(target=consume_censored_texts, args=(stop_event, total_texts, received_texts))
+    consumer_thread.start()
+
+    start_time = time.time()
+
+    for text in texts_to_send:
+        channel.basic_publish(exchange='', routing_key='text_queue', body=text)
+
+    print(f"Sent {total_texts} texts to InsultService.")
+
+    stop_event.wait(timeout=60)
+
+    end_time = time.time()
+
+    duration = end_time - start_time
+
+    print(f"Test finished with {node_count} nodes.")
+    print(f"Duration: {duration:.2f} seconds.")
+    print(f"Received {len(received_texts)} censored texts.")
+
+    for p in insult_service_procs + insult_filter_procs:
+        p.terminate()
+    consumer_thread.join()
+    connection.close()
+
+    return duration
+
+def plot_results(node_counts, durations):
+    baseline = durations[0]
+    speedups = [baseline / d for d in durations]
+
+    plt.figure(figsize=(10, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(node_counts, durations, marker='o')
+    plt.title('Temps total per nombre de nodes')
+    plt.xlabel('Nombre de nodes')
+    plt.ylabel('Temps (segons)')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(node_counts, speedups, marker='o', color='green')
+    plt.title('Speedup per nombre de nodes')
+    plt.xlabel('Nombre de nodes')
+    plt.ylabel('Speedup')
+
+    plt.tight_layout()
+    plt.show()
+if __name__ == "__main__":
+    node_counts = [1, 2, 3]
+    total_texts = 1000
+    durations = []
+
+    for nodes in node_counts:
+        duration = test_performance(nodes, total_texts)
+        durations.append(duration)
+
+    plot_results(node_counts, durations)

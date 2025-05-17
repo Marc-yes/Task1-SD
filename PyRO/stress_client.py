@@ -1,42 +1,78 @@
 import Pyro4
 import time
+import concurrent.futures
+import matplotlib.pyplot as plt
+import sys
 
-def stress_test(insult_services, filter_service, num_operations=100):
+
+# Nombres fijos de los filtros
+filter_names = [
+    "PYRONAME:insultfilter_1",
+    "PYRONAME:insultfilter_2",
+    "PYRONAME:insultfilter_3",
+]
+
+def filter_text(filter_uri, text):
+    proxy = Pyro4.Proxy(filter_uri)
+    return proxy.filter_text(text)
+
+def stress_test(num_nodes, num_requests):
+    uris = filter_names[:num_nodes]
+    texts = ["Este texto tiene un insulto idiota"] * num_requests
+
     start_time = time.time()
 
-    # Add insults to all insult services
-    for insult_service in insult_services:
-        insult_service.add_insult("tonto")
-        insult_service.add_insult("idiota")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        futures = []
+        for i, text in enumerate(texts):
+            target_uri = uris[i % num_nodes]
+            futures.append(executor.submit(filter_text, target_uri, text))
+        results = [f.result() for f in futures]
 
-    # Perform text filtering for multiple operations
-    text = "Eres un tonto y un idiota"
-    for _ in range(num_operations):
-        for insult_service in insult_services:
-            print(f"Sending text to filter: {text}")
-            censored_text = insult_service.filter_text(text)
-            print(f"Filtered text: {censored_text}")
-    
-    elapsed_time = time.time() - start_time
-    print(f"Time taken for {num_operations} operations: {elapsed_time} seconds")
-    return elapsed_time
+    end_time = time.time()
+    total_time = end_time - start_time
+    print(f"Tiempo total para {num_nodes} nodo(s): {total_time:.2f} segundos")
+    return total_time
 
 def main():
-    ns = Pyro4.locateNS()
+    if len(sys.argv) < 2:
+        print("Debes introducir el numero de textos a censurar: stress_client.py <numero_textos>")
+        sys.exit(1)
 
-    # Connect to 1, 2, or 3 InsultService instances
-    insult_service_uris = [
-        ns.lookup("insultservice_1"),
-        ns.lookup("insultservice_2"),
-        ns.lookup("insultservice_3")
-    ]
-    
-    insult_services = [Pyro4.Proxy(uri) for uri in insult_service_uris]
-    filter_service_uri = ns.lookup("insultfilter")
-    filter_service = Pyro4.Proxy(filter_service_uri)
+    try:
+        textos = int(sys.argv[1])
+    except ValueError:
+        print("El argumento debe ser un número entero.")
+        sys.exit(1)
+    nodes = [1, 2, 3]
+    times = []
 
-    # Stress test with 3 nodes
-    elapsed_time = stress_test(insult_services, filter_service)
+    for n in nodes:
+        print(f"\nProbando con {n} nodo(s)...")
+        t = stress_test(n, textos)
+        times.append(t)
+
+    base_time = times[0]
+    speedups = [base_time / t for t in times]
+
+    # Gráficos
+    plt.figure(figsize=(10, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(nodes, times, marker='o')
+    plt.title('Temps total per nombre de nodes')
+    plt.xlabel('Nombre de nodes')
+    plt.ylabel('Temps (segons)')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(nodes, speedups, marker='o', color='green')
+    plt.title('Speedup per nombre de nodes')
+    plt.xlabel('Nombre de nodes')
+    plt.ylabel('Speedup')
+
+    plt.tight_layout()
+    plt.show()
+
 
 if __name__ == "__main__":
     main()

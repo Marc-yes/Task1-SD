@@ -1,61 +1,49 @@
 import Pyro4
-import threading
+import sys
 from multiprocessing import Process
-
 
 @Pyro4.expose
 class InsultFilter:
-    def __init__(self, filter_name):
-        self.insults = []  # Lista de insultos
-        self.filter_name = filter_name  # Nombre único para cada nodo
+    def __init__(self, name):
+        self.name = name
+        self.insults = []
 
     def receive_insults(self, insult_list):
-        """Recibe los insultos de InsultService"""
         self.insults = insult_list
-        print(f"[{self.filter_name}] InsultFilter received insults: {self.insults}")
+        print(f"[{self.name}] Received insults: {self.insults}")
 
     def filter_text(self, text):
-        """Filtra el texto según los insultos recibidos"""
-        censored_text = text
-        if not self.insults:
-            print(f"[{self.filter_name}] No insults to filter.")
-            return text  # Si no hay insultos, retorna el texto original.
-
+        filtered = text
         for insult in self.insults:
-            censored_text = censored_text.replace(insult, "CENSORED")
-        print(f"[{self.filter_name}] Filtered text: {censored_text}")
-        return censored_text
+            filtered = filtered.replace(insult, "CENSORED")
+        print(f"[{self.name}] Filtered text: {filtered}")
+        return filtered
 
+def run_filter(name):
+    daemon = Pyro4.Daemon()
+    ns = Pyro4.locateNS()
 
-def run_insult_filter(filter_name):
-    """Función para iniciar el nodo de InsultFilter en un nuevo proceso"""
-    daemon = Pyro4.Daemon()  # Crea el servidor Pyro
-    ns = Pyro4.locateNS()  # Conecta al NameServer
+    obj = InsultFilter(name)
+    uri = daemon.register(obj)
+    ns.register(name, uri)
 
-    # Crear y registrar el servicio con un nombre único por nodo
-    insult_filter = InsultFilter(filter_name)
-    uri = daemon.register(insult_filter)  # Registrar el objeto en Pyro
-    ns.register(filter_name, uri)  # Registrar con el NameServer
-
-    print(f"[{filter_name}] InsultFilter is running.")
-    print(f"URI: {uri}")  # Verifica la URI en la que el servicio está registrado
-
-    daemon.requestLoop()  # Mantiene el servicio ejecutándose
-
+    print(f"{name} running at {uri}")
+    daemon.requestLoop()
 
 def main():
-    """Inicia hasta tres nodos de InsultFilter en paralelo"""
-    filter_names = ["insultfilter_1", "insultfilter_2", "insultfilter_3"]
+    if len(sys.argv) < 2:
+        print("Uso: python InsultFilter.py <nodos>")
+        sys.exit(1)
 
-    # Usamos multiprocessing para ejecutar los servicios en paralelo
-    processes = []
-    for name in filter_names:
-        p = Process(target=run_insult_filter, args=(name,))
-        processes.append(p)
+    nodes = int(sys.argv[1])
+    procs = []
+    for i in range(1, nodes+1):
+        name = f"insultfilter_{i}"
+        p = Process(target=run_filter, args=(name,))
         p.start()
+        procs.append(p)
 
-    # Esperar a que todos los procesos terminen
-    for p in processes:
+    for p in procs:
         p.join()
 
 if __name__ == "__main__":
