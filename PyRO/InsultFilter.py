@@ -6,7 +6,7 @@ from multiprocessing import Process
 class InsultFilter:
     def __init__(self, name):
         self.name = name
-        self.insults = []
+        self.insults = ["idiota"]
 
     def receive_insults(self, insult_list):
         self.insults = insult_list
@@ -16,7 +16,7 @@ class InsultFilter:
         filtered = text
         for insult in self.insults:
             filtered = filtered.replace(insult, "CENSORED")
-        print(f"[{self.name}] Filtered text: {filtered}")
+        # print(f"[{self.name}] Filtered text: {filtered}")
         return filtered
 
 def run_filter(name):

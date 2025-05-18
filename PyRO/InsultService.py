@@ -6,13 +6,16 @@ import sys
 
 @Pyro4.expose
 class InsultService:
-    def __init__(self, service_name, insult_filter_uri=None):
+    def __init__(self, service_name, insult_filter_uri):
         self.insults = set()
         self.subscribers = []
         self.insult_filter_uri = insult_filter_uri
         self.running = True
         self.service_name = service_name
         threading.Thread(target=self._broadcast_insults, daemon=True).start()
+
+        self.add_insult("idiota")
+        self.add_insult("tonto")
 
     def add_insult(self, insult):
         if insult not in self.insults:
@@ -30,10 +33,6 @@ class InsultService:
         subscriber = Pyro4.Proxy(subscriber_uri)
         self.subscribers.append(subscriber)
         return True
-
-    def set_insult_filter(self, insult_filter_uri):
-        self.insult_filter_uri = insult_filter_uri
-        print(f"[{self.service_name}] Set InsultFilter URI: {self.insult_filter_uri}")
 
     def pass_insults_to_filter(self):
         if self.insult_filter_uri:
