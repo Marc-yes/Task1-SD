@@ -5,6 +5,7 @@ import subprocess
 from multiprocessing import Manager
 import threading
 import matplotlib.pyplot as plt
+import sys
 
 def launch_insult_service(node_id):
     return subprocess.Popen(['python3', 'InsultService.py', str(node_id)])
@@ -105,9 +106,22 @@ def plot_results(node_counts, durations):
 
     plt.tight_layout()
     plt.show()
+
 if __name__ == "__main__":
     node_counts = [1, 2, 3]
-    total_texts = 1000
+
+    if len(sys.argv) < 2:
+        print("ERROR: Has de passar el número de textos a censurar com a paràmetre.")
+        sys.exit(1)
+
+    try:
+        total_texts = int(sys.argv[1])
+        if total_texts <= 0:
+            raise ValueError()
+    except ValueError:
+        print("ERROR: El número de textos debe ser un entero positivo.")
+        sys.exit(1)
+
     durations = []
 
     for nodes in node_counts:
