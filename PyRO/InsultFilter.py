@@ -7,16 +7,19 @@ class InsultFilter:
     def __init__(self, name):
         self.name = name
         self.insults = ["idiota"]
+        self.resultados = []
 
     def receive_insults(self, insult_list):
         self.insults = insult_list
-        print(f"[{self.name}] Received insults: {self.insults}")
+        print(f"[{self.name}] Insultos recibidos: {self.insults}")
 
     def filter_text(self, text):
         filtered = text
         for insult in self.insults:
             filtered = filtered.replace(insult, "CENSORED")
-        # print(f"[{self.name}] Filtered text: {filtered}")
+        print(f"[{self.name}] Texto filtrado: {filtered}")
+        self.resultados.append(filtered)
+
         return filtered
 
 def run_filter(name):

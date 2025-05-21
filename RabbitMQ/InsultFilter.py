@@ -20,7 +20,7 @@ class InsultFilter:
         for insulto in self.lista_insultos:
             texto_censurado = texto_censurado.replace(insulto, "CENSORED")
         self.resultados.append(texto_censurado)
-        # print(f"[InsultFilter-{self.id_nodo}] Texto filtrado: {texto_censurado}")
+        #print(f"[InsultFilter-{self.id_nodo}] Texto filtrado: {texto_censurado}")
         return texto_censurado
 
     def callback_insultos(self, ch, method, properties, body):
