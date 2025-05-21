@@ -14,9 +14,9 @@ s = xmlrpc.client.ServerProxy('http://localhost:8006')
 insults=[]
 
 # Afegir insults
-print(s.add_insult("sorra"))
-print(s.add_insult("tonto"))
-print(s.add_insult("cretino"))
+s.add_insult("sorra")
+s.add_insult("tonto")
+s.add_insult("cretino")
 
 # Obtenir insults
 print(s.get_insults())

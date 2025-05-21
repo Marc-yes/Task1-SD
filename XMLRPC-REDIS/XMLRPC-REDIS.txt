@@ -1,5 +1,0 @@
-En aquest model combinem XMLRPC amb Redis
-
-Per a fer el InsultFilter hem decidit que els cliens enviarien els seus text
-al servei i aquest els pujaria al REDIS, on qualsevol que conegui el canal,
-podria veure els resultats.
