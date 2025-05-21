@@ -17,9 +17,10 @@ def filter_text(filter_uri, text):
     return proxy.filter_text(text)
 
 def stress_test(num_nodes, num_requests):
+
     uris = filter_names[:num_nodes]
     texts = ["Este texto tiene un insulto idiota"] * num_requests
-
+    
     start_time = time.time()
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
@@ -27,7 +28,6 @@ def stress_test(num_nodes, num_requests):
         for i, text in enumerate(texts):
             target_uri = uris[i % num_nodes]
             futures.append(executor.submit(filter_text, target_uri, text))
-        results = [f.result() for f in futures]
 
     end_time = time.time()
     total_time = end_time - start_time

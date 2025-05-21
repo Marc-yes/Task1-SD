@@ -6,7 +6,7 @@ import sys
 
 @Pyro4.expose
 class InsultService:
-    def __init__(self, service_name, insult_filter_uri=None):
+    def __init__(self, service_name, insult_filter_uri):
         self.insults = set()
         self.subscribers = []
         self.insult_filter_uri = insult_filter_uri
@@ -14,9 +14,12 @@ class InsultService:
         self.service_name = service_name
         threading.Thread(target=self._broadcast_insults, daemon=True).start()
 
+        self.add_insult("idiota")
+        self.add_insult("tonto")
+
     def add_insult(self, insult):
         if insult not in self.insults:
-            print(f"[{self.service_name}] Adding insult: {insult}")
+            print(f"[{self.service_name}] Añadiendo insulto: {insult}")
             self.insults.add(insult)
             self.pass_insults_to_filter()
             return True
@@ -26,14 +29,10 @@ class InsultService:
         return list(self.insults)
 
     def subscribe(self, subscriber_uri):
-        print(f"[{self.service_name}] New subscriber: {subscriber_uri}")
+        print(f"[{self.service_name}] Nuevo suscriptor: {subscriber_uri}")
         subscriber = Pyro4.Proxy(subscriber_uri)
         self.subscribers.append(subscriber)
         return True
-
-    def set_insult_filter(self, insult_filter_uri):
-        self.insult_filter_uri = insult_filter_uri
-        print(f"[{self.service_name}] Set InsultFilter URI: {self.insult_filter_uri}")
 
     def pass_insults_to_filter(self):
         if self.insult_filter_uri:
@@ -41,11 +40,11 @@ class InsultService:
                 insult_filter = Pyro4.Proxy(self.insult_filter_uri)
                 insults = self.get_insults()
                 insult_filter.receive_insults(insults)
-                print(f"[{self.service_name}] Passed insults to filter")
+                print(f"[{self.service_name}] Insultos pasados al filtro")
             except Exception as e:
-                print(f"[{self.service_name}] Error passing insults to filter: {e}")
+                print(f"[{self.service_name}] Error pasando insultos al filtro: {e}")
         else:
-            print(f"[{self.service_name}] No InsultFilter set! Cannot pass insults.")
+            print(f"[{self.service_name}] No hay ningun InsultFilter iniciado! No es posible enviar insultos.")
 
     def filter_text(self, text):
         if self.insult_filter_uri:
@@ -54,7 +53,7 @@ class InsultService:
                 censored_text = insult_filter.filter_text(text)
                 return censored_text
             except Exception as e:
-                print(f"[{self.service_name}] Error filtering text: {e}")
+                print(f"[{self.service_name}] Error filtrando texto: {e}")
                 return text
         else:
             return text
@@ -63,14 +62,14 @@ class InsultService:
         while self.running:
             if self.insults and self.subscribers:
                 insult_list = list(self.insults)
-                print(f"[{self.service_name}] Sending insult list: {insult_list}")
+                print(f"[{self.service_name}] Enviando lista de insultos: {insult_list}")
                 for sub in self.subscribers:
                     try:
                         sub.notify(insult_list)
                     except Exception as e:
                         print(f"Subscriber error: {e}")
             else:
-                print(f"[{self.service_name}] No insults or no subscribers. Waiting...")
+                print(f"[{self.service_name}] No hay insultos o suscriptores. Esperando...")
             time.sleep(5)
 
 def run_service(service_name, insult_filter_uri):
