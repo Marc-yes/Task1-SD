@@ -49,7 +49,6 @@ def run_performance(n_nodes, act_n_p):
     
     start = time.time()
     
-    print(f"NO AQUI, {act_n_p}, {n_nodes}")
     
     #Repartim la carrega de treball per tants nodes com tinguem
     i=0
@@ -60,7 +59,6 @@ def run_performance(n_nodes, act_n_p):
                 i = i + 1
     
     end = time.time()
-    print("HIHIHIAHAHHA")
     elapsed = end - start
     
     for p in processes:
@@ -69,10 +67,9 @@ def run_performance(n_nodes, act_n_p):
     processes.clear()
     
     print(f"Temps total amb {n_nodes} node(s): {elapsed:.2f} segons")
-    print("SISISII")
+    
     r.spop(text_set, r.scard(text_set))
 
-    print("COOM?")
     return elapsed
         
     
